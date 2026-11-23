@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Preparati alla sorpresa</title>
+<meta name="theme-color" content="#f5eedd">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Sorpresa">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,500;0,600;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5eedd;            /* panna */
+    --bg-glow: #fbf7ec;
+    --ink: #2a2622;
+    --muted: #85796a;
+    --line: #dcd0b6;
+    --cell: #25221e;          /* caselle scure */
+    --cell-line: #3d372f;
+    --cell-hi: #373129;       /* parola attiva */
+    --cell-text: #f4eee1;
+    --gold: #e8b93a;          /* oro sulle caselle */
+    --gold-deep: #a9781a;     /* oro su sfondo panna */
+    --green: #2e9e5b;
+    --red: #c0392b;
+    --serif: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+    --sans: "Jost", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --n: 15;
+    --c: min(38px, calc((100vw - 28px) / var(--n)));
+    --g: 2px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%; color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased;
+    background: radial-gradient(ellipse at 50% 25%, var(--bg-glow) 0%, var(--bg) 70%) fixed, var(--bg);
+  }
+  body { overflow: hidden; }
+
+  /* ---------- schermate e transizione ---------- */
+  .screen {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column; align-items: center;
+    padding: env(safe-area-inset-top, 0) 14px env(safe-area-inset-bottom, 0);
+    overflow-y: auto;
+    transition: opacity .8s ease, transform .9s cubic-bezier(.2,.7,.2,1), filter .8s ease;
+  }
+  .screen.hidden { opacity: 0; pointer-events: none; visibility: hidden; transition: opacity .8s ease, transform .9s cubic-bezier(.2,.7,.2,1), filter .8s ease, visibility 0s .9s; }
+  #start.hidden { transform: scale(1.06); filter: blur(14px); }
+  #puzzle.hidden { transform: translateY(40px) scale(.98); filter: blur(10px); }
+
+  .sweep {
+    position: fixed; inset: 0; z-index: 10; pointer-events: none;
+    background: linear-gradient(100deg, transparent 35%, rgba(232,185,58,.3) 50%, transparent 65%);
+    transform: translateX(-100%);
+  }
+  .sweep.go { animation: sweep 1s ease-in-out; }
+  @keyframes sweep { to { transform: translateX(100%); } }
+
+  /* ---------- schermata iniziale ---------- */
+  #start { justify-content: center; text-align: center; gap: 3.2rem; padding-left: 20px; padding-right: 20px; }
+  #snow { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  #start > *:not(canvas) { position: relative; }
+  h1 {
+    font-family: var(--serif); font-weight: 300; font-style: italic;
+    font-size: clamp(2.6rem, 9vw, 5.4rem); line-height: 1.05; letter-spacing: .01em;
+  }
+  .timer { display: flex; gap: clamp(1rem, 4vw, 2.6rem); justify-content: center; }
+  .unit { min-width: 3.4rem; }
+  .unit b {
+    display: block; font-family: var(--serif); font-weight: 500;
+    font-size: clamp(2.4rem, 9vw, 4.6rem); line-height: 1; font-variant-numeric: tabular-nums; color: var(--gold-deep);
+  }
+  .unit span { display: block; margin-top: .5rem; font-size: .8rem; letter-spacing: .12em; color: var(--muted); }
+  .play {
+    font-family: var(--sans); font-size: 1rem; font-weight: 400; letter-spacing: .2em; text-indent: .2em;
+    color: var(--gold-deep); background: transparent; border: 1px solid var(--gold-deep);
+    padding: .95rem 3.2rem; border-radius: 999px; cursor: pointer;
+    transition: background .35s, color .35s, transform .2s;
+  }
+  .play:hover { background: var(--gold-deep); color: var(--bg); }
+  .play:active { transform: scale(.97); }
+  .play:focus-visible, .clue:focus-visible { outline: 2px solid var(--gold-deep); outline-offset: 4px; }
+
+  /* ---------- cruciverba ---------- */
+  #puzzle { justify-content: flex-start; padding-top: calc(env(safe-area-inset-top, 0) + 26px); padding-bottom: 60px; }
+  .wrap { width: 100%; max-width: 660px; display: flex; flex-direction: column; align-items: center; }
+  .head { text-align: center; margin-bottom: 1.1rem; }
+  .head h2 { font-family: var(--serif); font-weight: 400; font-style: italic; font-size: clamp(1.9rem, 6vw, 2.6rem); }
+  .hint { margin-top: .4rem; font-size: .84rem; line-height: 1.5; color: var(--muted); max-width: 30rem; }
+  .hint em { font-style: normal; color: var(--gold-deep); }
+  .count { margin-top: .5rem; font-size: .82rem; color: var(--muted); letter-spacing: .06em; }
+  .now {
+    width: 100%; min-height: 4.6rem; text-align: center; margin-bottom: 1rem;
+    display: flex; flex-direction: column; justify-content: center; gap: .3rem;
+  }
+  .now p { font-family: var(--serif); font-weight: 500; font-size: clamp(1.15rem, 4vw, 1.45rem); line-height: 1.3; }
+  .now small { font-size: .8rem; color: var(--muted); min-height: 1.1em; transition: color .3s; }
+  .now small.warn { color: var(--red); }
+
+  .board {
+    display: grid; grid-template-columns: repeat(var(--n), var(--c)); grid-template-rows: repeat(var(--n), var(--c));
+    gap: var(--g); margin: 0 auto;
+  }
+  .cell {
+    position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer;
+    background: var(--cell); border: 1px solid var(--cell-line); border-radius: 3px;
+    font-family: var(--serif); font-weight: 600; font-size: calc(var(--c) * .56); color: var(--cell-text);
+    transition: background-color .7s ease, border-color .7s ease, color .7s ease, box-shadow .7s ease;
+  }
+  .cell .n { position: absolute; top: 1px; left: 2px; font-family: var(--sans); font-weight: 400; font-size: max(6.5px, calc(var(--c) * .27)); line-height: 1; color: #a99f8c; }
+  .cell.inword { background: var(--cell-hi); border-color: #7b7262; }
+  .cell.gold { border-color: var(--gold); color: var(--gold); box-shadow: inset 0 0 0 1px rgba(232,185,58,.55); }
+  .cell.gold .n { color: #d3b45d; }
+  .cell.caret { border-color: #f4eee1 !important; }
+  .cell.ok  { background: var(--green) !important; border-color: var(--green) !important; color: #fff !important; box-shadow: none; transition-duration: .2s; }
+  .cell.bad { background: var(--red) !important; border-color: var(--red) !important; color: #fff !important; box-shadow: none; transition-duration: .2s; }
+  .cell.shake { animation: shake .4s; }
+  @keyframes shake { 20%,60% { transform: translateX(-4px); } 40%,80% { transform: translateX(4px); } }
+  @keyframes glow { 50% { box-shadow: inset 0 0 0 1px var(--gold), 0 0 18px 3px rgba(232,185,58,.75); } }
+
+  /* ---------- finale: spariscono tutte le lettere tranne quelle dorate ---------- */
+  #puzzle.finale { overflow: hidden; }
+  #puzzle.finale .head, #puzzle.finale .now, #puzzle.finale .lists { opacity: 0; pointer-events: none; transition: opacity .8s ease; }
+  #puzzle.finale .cell:not(.gold) { opacity: 0; transform: scale(.55); pointer-events: none; transition: opacity .8s ease, transform .8s ease; }
+  #puzzle.finale .cell.gold { visibility: hidden; }
+  .cell.fly {
+    position: fixed; margin: 0; z-index: 20; pointer-events: none; transform-origin: 0 0; cursor: default;
+    transition: transform 1.3s cubic-bezier(.65,0,.25,1), background-color .9s ease, color .9s ease, border-color .9s ease;
+  }
+  .cell.fly .n { transition: opacity .5s ease; }
+  .cell.fly.go .n { opacity: 0; }
+  .cell.fly.land { background: var(--gold); border-color: var(--gold); color: #25221e; animation: glow 1.8s ease-in-out 2; }
+
+  #reveal {
+    position: fixed; left: 0; right: 0; z-index: 21; text-align: center; pointer-events: none;
+    font-family: var(--serif); font-style: italic; font-weight: 400; font-size: clamp(1.4rem, 5vw, 2.1rem); color: var(--gold-deep);
+    opacity: 0; transform: translateY(8px); transition: opacity 1.1s ease, transform 1.1s ease;
+  }
+  #reveal.show { opacity: 1; transform: none; }
+  #auguri {
+    position: fixed; left: 0; right: 0; z-index: 21; text-align: center; pointer-events: none;
+    font-family: var(--serif); font-style: italic; font-weight: 500; font-size: clamp(2.2rem, 8vw, 4rem); color: var(--gold-deep);
+    opacity: 0; transform: translateY(14px) scale(.96); transition: opacity 1.4s ease, transform 1.4s cubic-bezier(.2,.7,.2,1);
+  }
+  #auguri.show { opacity: 1; transform: none; }
+  #auguri .heart { display: inline-block; animation: beat 1.4s ease-in-out infinite; }
+  @keyframes beat { 0%,100% { transform: scale(1); } 15% { transform: scale(1.22); } 30% { transform: scale(1); } 45% { transform: scale(1.14); } }
+
+  .lists { width: 100%; margin-top: 2.4rem; padding-top: 1.4rem; border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem 2rem; }
+  @media (max-width: 620px) { .lists { grid-template-columns: 1fr; } }
+  .lists h3 { font-family: var(--serif); font-style: italic; font-weight: 500; font-size: 1.3rem; margin-bottom: .4rem; }
+  .lists ol { list-style: none; }
+  .clue { display: flex; gap: .7rem; padding: .4rem .3rem; cursor: pointer; border-radius: 6px; font-family: var(--serif); font-size: 1.05rem; line-height: 1.3; color: #4d463d; transition: color .3s; }
+  .clue i { font-family: var(--sans); font-style: normal; font-size: .76rem; width: 1.4rem; text-align: right; flex: none; padding-top: .3rem; color: var(--muted); }
+  .clue.active { color: var(--ink); font-weight: 600; }
+  .clue.active i { color: var(--gold-deep); }
+  .clue.done { color: #b3a994; text-decoration: line-through; text-decoration-color: #d8ccb2; }
+
+  #kb { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; font-size: 16px; border: 0; padding: 0; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sweep" id="sweep"></div>
+
+<!-- SCHERMATA INIZIALE -->
+<main class="screen" id="start">
+  <canvas id="snow" aria-hidden="true"></canvas>
+  <h1>Preparati alla sorpresa</h1>
+  <div class="timer" role="timer" aria-live="off">
+    <div class="unit"><b id="d">00</b><span>giorni</span></div>
+    <div class="unit"><b id="h">00</b><span>ore</span></div>
+    <div class="unit"><b id="m">00</b><span>minuti</span></div>
+    <div class="unit"><b id="s">00</b><span>secondi</span></div>
+  </div>
+  <button class="play" id="playBtn" type="button">Gioca</button>
+</main>
+
+<!-- SCHERMATA CRUCIVERBA -->
+<section class="screen hidden" id="puzzle" aria-hidden="true">
+  <div class="wrap">
+    <div class="head">
+      <h2>Il cruciverba</h2>
+      <p class="hint">Le lettere <em>dorate</em>, lette dall'alto in basso e da sinistra a destra, formano la parola misteriosa.</p>
+      <div class="count" id="count"></div>
+    </div>
+    <div class="now" aria-live="polite">
+      <p id="nowClue"></p>
+      <small id="msg"></small>
+    </div>
+    <div class="board" id="board"></div>
+    <div class="lists">
+      <div><h3>Orizzontali</h3><ol id="listA"></ol></div>
+      <div><h3>Verticali</h3><ol id="listD"></ol></div>
+    </div>
+  </div>
+</section>
+
+<div id="reveal" aria-live="polite">La parola misteriosa è</div>
+
+<div id="auguri" aria-live="polite">Tanti auguri <span class="heart">❤️</span></div>
+
+<input id="kb" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" aria-label="Scrivi la risposta e premi Invio">
+
+<script>
+/* ============ DATI (generati dalla griglia 15 x 15) ============ */
+const DATA = {"size": 15, "words": [{"num": 1, "dir": "A", "r": 0, "c": 0, "answer": "SCACCHI", "clue": "Gioco da tavolo con re, regina e alfieri."}, {"num": 2, "dir": "A", "r": 0, "c": 10, "answer": "DANTE", "clue": "Alighieri, autore della «Divina Commedia»."}, {"num": 5, "dir": "A", "r": 2, "c": 4, "answer": "CATTEDRALE", "clue": "Chiesa principale di una diocesi."}, {"num": 8, "dir": "A", "r": 4, "c": 0, "answer": "RINASCIMENTO", "clue": "Periodo artistico del Quattrocento e del Cinquecento."}, {"num": 12, "dir": "A", "r": 7, "c": 1, "answer": "MICHELANGELO", "clue": "Scultore del David e pittore della Cappella Sistina."}, {"num": 14, "dir": "A", "r": 9, "c": 4, "answer": "CANNOLO", "clue": "Dolce siciliano a forma di tubo, ripieno di ricotta."}, {"num": 16, "dir": "A", "r": 12, "c": 2, "answer": "ORO", "clue": "Metallo prezioso dal simbolo chimico Au."}, {"num": 17, "dir": "A", "r": 12, "c": 6, "answer": "CAMPANILE", "clue": "Torre che ospita le campane di una chiesa."}, {"num": 19, "dir": "A", "r": 14, "c": 0, "answer": "EQUATORE", "clue": "Linea immaginaria che divide la Terra in due emisferi."}, {"num": 20, "dir": "A", "r": 14, "c": 9, "answer": "COMETA", "clue": "Corpo celeste con una lunga coda luminosa."}, {"num": 1, "dir": "D", "r": 0, "c": 0, "answer": "SCIARPA", "clue": "Accessorio di lana che si avvolge intorno al collo."}, {"num": 3, "dir": "D", "r": 0, "c": 12, "answer": "NILO", "clue": "Fiume africano che attraversa l'Egitto."}, {"num": 4, "dir": "D", "r": 1, "c": 8, "answer": "NEVE", "clue": "Precipitazione di cristalli di ghiaccio."}, {"num": 6, "dir": "D", "r": 2, "c": 5, "answer": "ARCIPELAGO", "clue": "Gruppo di isole vicine tra loro."}, {"num": 7, "dir": "D", "r": 3, "c": 2, "answer": "INCHIOSTRO", "clue": "Liquido colorato per scrivere con la penna stilografica."}, {"num": 9, "dir": "D", "r": 4, "c": 14, "answer": "ANTARTIDE", "clue": "Continente ghiacciato intorno al Polo Sud."}, {"num": 10, "dir": "D", "r": 5, "c": 12, "answer": "LEOPARDI", "clue": "Poeta di Recanati, autore de «L'infinito»."}, {"num": 11, "dir": "D", "r": 6, "c": 7, "answer": "CARNEVALE", "clue": "Festa di maschere che precede la Quaresima."}, {"num": 13, "dir": "D", "r": 9, "c": 0, "answer": "TEVERE", "clue": "Fiume che attraversa Roma."}, {"num": 15, "dir": "D", "r": 9, "c": 10, "answer": "OCEANO", "clue": "Immensa distesa d'acqua salata, come il Pacifico."}, {"num": 18, "dir": "D", "r": 13, "c": 5, "answer": "PO", "clue": "Il fiume più lungo d'Italia."}], "gold": [[0, 0], [0, 3], [0, 5], [1, 12], [2, 11], [4, 5], [6, 7], [7, 2], [7, 14], [9, 6], [12, 4], [12, 6], [12, 12]]};
+const FLASH_MS = 1100;   // durata del verde
+
+/* ============ COUNTDOWN ============ */
+function targetDate() {
+  const now = new Date(), y = now.getFullYear();
+  return now >= new Date(y, 11, 9) ? new Date(y + 1, 11, 8) : new Date(y, 11, 8);
+}
+const target = targetDate();
+const pad = n => String(n).padStart(2, "0");
+function tick() {
+  let diff = Math.max(0, target - new Date());
+  const d = Math.floor(diff / 864e5); diff -= d * 864e5;
+  const h = Math.floor(diff / 36e5);  diff -= h * 36e5;
+  const m = Math.floor(diff / 6e4);   diff -= m * 6e4;
+  const s = Math.floor(diff / 1e3);
+  document.getElementById("d").textContent = pad(d);
+  document.getElementById("h").textContent = pad(h);
+  document.getElementById("m").textContent = pad(m);
+  document.getElementById("s").textContent = pad(s);
+}
+tick(); setInterval(tick, 1000);
+
+/* ============ NEVE LEGGERA ============ */
+(function snow() {
+  const cv = document.getElementById("snow"), ctx = cv.getContext("2d");
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  let W, H; const flakes = [];
+  function size() { W = cv.width = innerWidth; H = cv.height = innerHeight; }
+  size(); addEventListener("resize", size);
+  for (let i = 0; i < 50; i++) flakes.push({ x: Math.random(), y: Math.random(), r: .7 + Math.random() * 1.7, v: .04 + Math.random() * .08, p: Math.random() * 6 });
+  (function frame(t) {
+    if (!cv.offsetParent) return requestAnimationFrame(frame);
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = "rgba(169,120,26,.32)";
+    for (const f of flakes) {
+      f.y += f.v / 60; if (f.y > 1.02) { f.y = -.02; f.x = Math.random(); }
+      ctx.beginPath(); ctx.arc(f.x * W + Math.sin(t / 2000 + f.p) * 14, f.y * H, f.r, 0, 6.283); ctx.fill();
+    }
+    requestAnimationFrame(frame);
+  })(0);
+})();
+
+/* ============ CRUCIVERBA ============ */
+const S = DATA.size;
+document.documentElement.style.setProperty("--n", S);
+const boardEl = document.getElementById("board");
+const nowClue = document.getElementById("nowClue");
+const msg = document.getElementById("msg");
+const countEl = document.getElementById("count");
+const kb = document.getElementById("kb");
+const norm = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z]/g, "");
+
+// celle
+const cells = {};      // "r,c" -> cella
+const goldKeys = new Set(DATA.gold.map(([r, c]) => r + "," + c));
+const words = DATA.words.map((w, wi) => {
+  const cs = [];
+  for (let i = 0; i < w.answer.length; i++) {
+    const r = w.dir === "A" ? w.r : w.r + i, c = w.dir === "A" ? w.c + i : w.c, k = r + "," + c;
+    if (!cells[k]) cells[k] = { r, c, k, ch: w.answer[i], val: "", locked: false, words: [], gold: goldKeys.has(k), num: null, el: null };
+    cells[k].words.push(wi);
+    cs.push(cells[k]);
+  }
+  cells[cs[0].k].num = w.num;
+  return Object.assign({}, w, { cells: cs, status: "idle", clueEl: null });
+});
+
+Object.values(cells).forEach(cell => {
+  const el = document.createElement("div");
+  el.className = "cell";
+  el.style.gridRow = cell.r + 1; el.style.gridColumn = cell.c + 1;
+  if (cell.num) { const n = document.createElement("span"); n.className = "n"; n.textContent = cell.num; el.appendChild(n); }
+  const t = document.createElement("span"); t.className = "t"; el.appendChild(t);
+  el.addEventListener("click", () => clickCell(cell));
+  boardEl.appendChild(el); cell.el = el; cell.tEl = t;
+});
+
+// elenco definizioni
+words.forEach((w, wi) => {
+  const li = document.createElement("li");
+  li.className = "clue"; li.tabIndex = 0;
+  li.innerHTML = "<i>" + w.num + ".</i><span></span>";
+  li.lastChild.textContent = w.clue + " (" + w.answer.length + ")";
+  li.addEventListener("click", () => select(wi));
+  li.addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); select(wi); } });
+  document.getElementById(w.dir === "A" ? "listA" : "listD").appendChild(li);
+  w.clueEl = li;
+});
+
+let active = 0;
+const isDone = w => w.status === "solved" || w.status === "ok";
+const freeCells = w => w.cells.filter(c => !c.locked);
+const HINT = w => w.answer.length + " lettere · scrivi e premi Invio";
+function setMsg(t, warn) { msg.textContent = t || ""; msg.classList.toggle("warn", !!warn); }
+
+function render() {
+  const aw = words[active];
+  const free = freeCells(aw);
+  const caret = isDone(aw) ? null : free.find(c => !c.val);
+  Object.values(cells).forEach(cell => {
+    let cls = "cell";
+    if (cell.gold) cls += " gold";
+    if (aw.cells.includes(cell)) cls += " inword";
+    if (cell === caret && document.activeElement === kb) cls += " caret";
+    const ws = cell.words.map(i => words[i]);
+    if (ws.some(w => w.status === "ok")) cls += " ok";
+    else if (!cell.locked && ws.some(w => w.status === "bad")) cls += " bad";
+    cell.el.className = cls + (cell.el.classList.contains("shake") ? " shake" : "");
+    cell.tEl.textContent = cell.val;
+  });
+  words.forEach((w, i) => {
+    w.clueEl.classList.toggle("active", i === active);
+    w.clueEl.classList.toggle("done", isDone(w));
+  });
+  const done = words.filter(isDone).length;
+  const gl = DATA.gold.filter(([r, c]) => cells[r + "," + c].locked).length;
+  countEl.textContent = done + " / " + words.length + " parole · " + gl + " / " + DATA.gold.length + " lettere dorate";
+}
+
+function select(wi, focus = true) {
+  active = wi;
+  const w = words[wi];
+  nowClue.textContent = w.num + " " + (w.dir === "A" ? "orizzontale" : "verticale") + " — " + w.clue;
+  setMsg(isDone(w) ? "Già risolta." : HINT(w));
+  kb.maxLength = Math.max(1, freeCells(w).length);
+  kb.value = freeCells(w).map(c => c.val).join("");
+  if (focus && !isDone(w)) kb.focus({ preventScroll: true });
+  render();
+}
+
+function clickCell(cell) {
+  const ws = cell.words;
+  let pick = ws[0];
+  if (ws.includes(active)) {
+    const other = ws.find(i => i !== active);
+    if (other !== undefined && !isDone(words[other])) pick = other; else pick = active;
+  } else {
+    const open = ws.find(i => !isDone(words[i]));
+    if (open !== undefined) pick = open;
+  }
+  select(pick);
+}
+
+function nextOpen(from) {
+  for (let k = 1; k <= words.length; k++) {
+    const i = (from + k) % words.length;
+    if (!isDone(words[i])) return i;
+  }
+  return -1;
+}
+
+kb.addEventListener("input", () => {
+  const w = words[active];
+  if (isDone(w)) { kb.value = ""; return; }
+  const F = freeCells(w);
+  const v = norm(kb.value).slice(0, F.length);
+  kb.value = v;
+  F.forEach((c, k) => {
+    const nv = v[k] || "";
+    if (c.val !== nv) { c.val = nv; c.words.forEach(i => { if (words[i].status === "bad") words[i].status = "idle"; }); }
+  });
+  if (w.status === "bad") w.status = "idle";
+  setMsg(HINT(w));
+  render();
+});
+
+kb.addEventListener("keydown", ev => {
+  if (ev.key === "Enter") { ev.preventDefault(); confirmWord(); }
+  else if (ev.key === "ArrowDown" || ev.key === "ArrowRight") { ev.preventDefault(); select((active + 1) % words.length); }
+  else if (ev.key === "ArrowUp" || ev.key === "ArrowLeft") { ev.preventDefault(); select((active - 1 + words.length) % words.length); }
+});
+kb.addEventListener("focus", render);
+kb.addEventListener("blur", render);
+
+function lockWord(w) { w.cells.forEach(c => { c.val = c.ch; c.locked = true; }); }
+
+function confirmWord() {
+  const wi = active, w = words[wi];
+  if (isDone(w)) return;
+  if (w.cells.some(c => !c.val)) {
+    setMsg("Completa la parola prima di confermare.", true);
+    w.cells.forEach(c => { c.el.classList.remove("shake"); void c.el.offsetWidth; c.el.classList.add("shake"); setTimeout(() => c.el.classList.remove("shake"), 450); });
+    return;
+  }
+  const typed = w.cells.map(c => c.val).join("");
+  if (typed === w.answer) {
+    w.status = "ok"; lockWord(w); setMsg("Corretto!"); render();
+    setTimeout(() => {
+      w.status = "solved";
+      // parole che restano completate dagli incroci
+      words.forEach(o => { if (!isDone(o) && o.cells.every(c => c.locked)) o.status = "solved"; });
+      render();
+      if (words.every(isDone)) return finish();   // solo a cruciverba COMPLETO
+      if (active === wi) { const n = nextOpen(wi); if (n >= 0) select(n); }
+    }, FLASH_MS);
+  } else {
+    w.status = "bad"; setMsg("Non è corretta. Modifica la parola e riprova.", true); render();
+  }
+}
+
+let finished = false;
+function finish() {
+  if (finished) return; finished = true;
+  kb.blur();
+  setMsg("");
+  const puzzle = document.getElementById("puzzle"), reveal = document.getElementById("reveal");
+  const golds = DATA.gold.map(([r, c]) => cells[r + "," + c]);   // già in ordine di lettura
+  const N = golds.length;
+  boardEl.scrollIntoView({ behavior: "smooth", block: "center" });
+
+  setTimeout(() => {
+    // 1) clono le caselle dorate (fisse sullo schermo), poi svaniscono tutte le altre
+    const fl = golds.map(cell => {
+      const rc = cell.el.getBoundingClientRect();
+      const el = cell.el.cloneNode(true);
+      el.className = "cell gold fly";
+      el.style.cssText = "left:" + rc.left + "px;top:" + rc.top + "px;width:" + rc.width + "px;height:" + rc.height + "px;";
+      document.body.appendChild(el);
+      return { el, l: rc.left, t: rc.top, w: rc.width };
+    });
+    Object.values(cells).forEach(c => { if (!c.gold) c.el.style.transitionDelay = (Math.random() * .45) + "s"; });
+    puzzle.classList.add("finale");
+
+    // 2) disposizione finale al centro: una riga, o due su schermi stretti
+    function layout() {
+      const vw = innerWidth, vh = innerHeight, gap = vw < 560 ? 5 : 7;
+      const rows = vw < 560 ? [Math.ceil(N / 2), Math.floor(N / 2)] : [N];
+      const tw = Math.min(50, (vw - 28 - (rows[0] - 1) * gap) / rows[0]);
+      const H = rows.length * tw + (rows.length - 1) * gap;
+      const top0 = (vh - H) / 2 + 26;
+      const pos = []; let i = 0;
+      rows.forEach((n, ri) => {
+        const x0 = (vw - (n * tw + (n - 1) * gap)) / 2;
+        for (let k = 0; k < n; k++) pos.push({ x: x0 + k * (tw + gap), y: top0 + ri * (tw + gap) });
+      });
+      reveal.style.top = Math.max(16, top0 - 64) + "px";
+      document.getElementById("auguri").style.top = (top0 + H + 44) + "px";
+      return { pos, tw };
+    }
+    function place(instant) {
+      const { pos, tw } = layout();
+      fl.forEach((f, k) => {
+        if (instant) f.el.style.transition = "none";
+        f.el.style.transform = "translate(" + (pos[k].x - f.l) + "px," + (pos[k].y - f.t) + "px) scale(" + (tw / f.w) + ")";
+        if (instant) { void f.el.offsetWidth; f.el.style.transition = ""; }
+      });
+    }
+
+    // 3) le dorate volano al centro
+    setTimeout(() => {
+      fl.forEach((f, k) => { f.el.classList.add("go"); f.el.style.transitionDelay = (k * 0.07) + "s"; });
+      place(false);
+      const flight = 1300 + (N - 1) * 70;
+      // 4) atterrano: si illuminano e compare il titolo
+      setTimeout(() => {
+        fl.forEach((f, k) => setTimeout(() => f.el.classList.add("land"), k * 60));
+        setTimeout(() => reveal.classList.add("show"), 350);
+        setTimeout(() => document.getElementById("auguri").classList.add("show"), 3800);
+        fl.forEach(f => { f.el.style.transitionDelay = "0s"; });
+        addEventListener("resize", () => place(true));
+      }, flight + 150);
+    }, 1250);
+  }, 750);
+}
+
+/* ============ PASSAGGIO TRA SCHERMATE ============ */
+document.getElementById("playBtn").addEventListener("click", () => {
+  const start = document.getElementById("start"), puzzle = document.getElementById("puzzle"), sweep = document.getElementById("sweep");
+  sweep.classList.remove("go"); void sweep.offsetWidth; sweep.classList.add("go");
+  start.classList.add("hidden"); start.setAttribute("aria-hidden", "true");
+  setTimeout(() => {
+    puzzle.classList.remove("hidden"); puzzle.removeAttribute("aria-hidden");
+    select(0, window.innerWidth > 700);
+  }, 450);
+});
+
+document.addEventListener("keydown", ev => {
+  if (document.getElementById("puzzle").classList.contains("hidden")) return;
+  if (document.activeElement !== kb && !ev.metaKey && !ev.ctrlKey && !ev.altKey && (ev.key.length === 1 || ev.key === "Enter" || ev.key === "Backspace")) {
+    if (!isDone(words[active])) kb.focus({ preventScroll: true });
+  }
+});
+
+render();
+</script>
+</body>
+</html>
